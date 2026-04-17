@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no"
+    />
+    <title>The Game</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family: "Arial", sans-serif;
+      }
+      #info {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 8px;
+        pointer-events: none;
+        z-index: 100;
+        font-size: 14px;
+      }
+      #controls {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-size: 12px;
+        pointer-events: none;
+      }
+      #player-count {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        color: white;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 10px 20px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="info">
+      <strong>Multiplayer Cube Arena</strong> | Move with WASD
+    </div>
+    <div id="controls">🎮 Controls: W A S D to move your cube</div>
+    <div id="player-count">Players: <span id="player-count-value">1</span></div>
+  </body>
+</html>
