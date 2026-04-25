@@ -1,9 +1,16 @@
-import Vector from "./vector.js";
-import CANNON from "cannon-es";
+import * as CANNON from "cannon-es";
+import Vector from "../helpers/vector";
+import { Id, Serializable, Serialize } from "./serializable";
 
+@Serializable
 export default class Entity {
+  @Id
+  @Serialize
+  id: string = globalThis.crypto.randomUUID();
+
   body: CANNON.Body = new CANNON.Body();
 
+  @Serialize
   get pos() {
     return Vector.from(this.body.position);
   }
@@ -12,6 +19,7 @@ export default class Entity {
     this.body.position.set(pos.x, pos.y, pos.z);
   }
 
+  @Serialize
   get vel() {
     return Vector.from(this.body.velocity);
   }
@@ -20,6 +28,7 @@ export default class Entity {
     this.body.velocity.set(vel.x, vel.y, vel.z);
   }
 
+  @Serialize
   get angVel() {
     return Vector.from(this.body.angularVelocity);
   }
@@ -28,6 +37,7 @@ export default class Entity {
     this.body.angularVelocity.set(vel.x, vel.y, vel.z);
   }
 
+  @Serialize
   get rot() {
     const euler = new CANNON.Vec3();
     this.body.quaternion.toEuler(euler);
@@ -38,6 +48,7 @@ export default class Entity {
     this.body.quaternion.setFromEuler(rot.x, rot.y, rot.z);
   }
 
+  @Serialize
   get force() {
     return Vector.from(this.body.force);
   }
@@ -46,6 +57,7 @@ export default class Entity {
     this.body.force.set(force.x, force.y, force.z);
   }
 
+  @Serialize
   get torque() {
     return Vector.from(this.body.torque);
   }
@@ -54,6 +66,7 @@ export default class Entity {
     this.body.torque.set(torque.x, torque.y, torque.z);
   }
 
+  @Serialize
   get damping() {
     return this.body.linearDamping;
   }
@@ -62,6 +75,7 @@ export default class Entity {
     this.body.linearDamping = damping;
   }
 
+  @Serialize
   get angularDamping() {
     return this.body.angularDamping;
   }
@@ -70,6 +84,7 @@ export default class Entity {
     this.body.angularDamping = damping;
   }
 
+  @Serialize
   get factor() {
     return Vector.from(this.body.linearFactor);
   }
@@ -78,6 +93,7 @@ export default class Entity {
     this.body.linearFactor.set(factor.x, factor.y, factor.z);
   }
 
+  @Serialize
   get angularFactor() {
     return Vector.from(this.body.angularFactor);
   }
@@ -86,6 +102,7 @@ export default class Entity {
     this.body.angularFactor.set(factor.x, factor.y, factor.z);
   }
 
+  @Serialize
   get mass() {
     return this.body.mass;
   }

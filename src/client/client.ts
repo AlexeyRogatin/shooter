@@ -1,5 +1,14 @@
-import * as THREE from "three";
 import { io } from "socket.io-client";
+import State from "../lib/entity/state";
+import { ClientHandler } from "../lib/events/clientHandler";
+import * as THREE from "three";
+
+const socket = io(window.location.origin);
+const state = new State();
+const handler = new ClientHandler(socket, state);
+handler.initialize();
+
+socket.emit("AddPlayerEvent");
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111122);
@@ -11,247 +20,139 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   1000,
 );
-camera.position.set(15, 10, 15);
+camera.position.set(5, 5, 5);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = true; // nicer shadows
 document.body.appendChild(renderer.domElement);
 
-const ambientLight = new THREE.AmbientLight(0x404040);
-scene.add(ambientLight);
+// --- Lighting ---
+const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+mainLight.position.set(5, 10, 7);
+mainLight.castShadow = true;
+mainLight.receiveShadow = false;
+scene.add(mainLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-directionalLight.position.set(10, 20, 5);
-directionalLight.castShadow = true;
-directionalLight.receiveShadow = true;
-scene.add(directionalLight);
+const fillLight = new THREE.AmbientLight(0x404060);
+scene.add(fillLight);
 
 const backLight = new THREE.PointLight(0x4466cc, 0.5);
-backLight.position.set(-5, 5, -10);
+backLight.position.set(-2, 3, -4);
 scene.add(backLight);
 
-const gridHelper = new THREE.GridHelper(30, 20, 0x88aaff, 0x335588);
-gridHelper.position.y = -0.5;
+// --- Ground and helpers ---
+const gridHelper = new THREE.GridHelper(20, 20, 0x88aaff, 0x335588);
+gridHelper.position.y = -0.2;
 scene.add(gridHelper);
 
-const floorMat = new THREE.ShadowMaterial({
-  opacity: 0.5,
-  color: 0x000000,
-  transparent: true,
-});
-const floor = new THREE.Mesh(new THREE.PlaneGeometry(25, 25), floorMat);
-floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.5;
-floor.receiveShadow = true;
-scene.add(floor);
+// optional axis helper (commented)
+// const axesHelper = new THREE.AxesHelper(5);
+// scene.add(axesHelper);
 
-const socket = io();
+// --- Player management ---
+// Map socketId -> THREE.Mesh
+const playerMeshes = new Map();
 
-type Player = THREE.Mesh<
-  THREE.BoxGeometry,
-  THREE.MeshStandardMaterial,
-  THREE.Object3DEventMap
->;
-
-const players: Record<string, Player> = {};
-
-let localPlayer: any = null;
-
-const keys: Record<string, boolean> = {
-  w: false,
-  a: false,
-  s: false,
-  d: false,
-};
-const moveSpeed = 5;
-
-function createLocalPlayer(color: THREE.ColorRepresentation) {
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
+// Helper to create a coloured sphere for a player
+function createPlayerMesh(isLocal = false) {
+  const geometry = new THREE.SphereGeometry(0.5, 32, 32);
   const material = new THREE.MeshStandardMaterial({
-    color: color,
-    emissive: 0x222222,
+    color: isLocal ? 0x66ff66 : 0xff8866,
+    emissive: isLocal ? 0x226622 : 0x442200,
+    roughness: 0.4,
+    metalness: 0.1,
   });
-  const cube = new THREE.Mesh(geometry, material);
-  cube.castShadow = true;
-  cube.receiveShadow = true;
-
-  const edgesGeo = new THREE.EdgesGeometry(geometry);
-  const edgesMat = new THREE.LineBasicMaterial({ color: 0xffffff });
-  const wireframe = new THREE.LineSegments(edgesGeo, edgesMat);
-  cube.add(wireframe);
-
-  scene.add(cube);
-  return cube;
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = false;
+  // add a simple ring or wireframe for local player? not necessary
+  return mesh;
 }
 
-function createRemotePlayer(
-  id: string,
-  color: THREE.ColorRepresentation,
-  position: THREE.Vector3,
-) {
-  const geometry = new THREE.BoxGeometry(1, 1, 1);
-  const material = new THREE.MeshStandardMaterial({ color: color });
-  const cube = new THREE.Mesh(geometry, material);
-  cube.castShadow = true;
-  cube.receiveShadow = true;
-  cube.userData = { id: id };
-  scene.add(cube);
+// Update the scene to match state.players
+function synchronisePlayers() {
+  const currentIds = new Set(state.players.map((p) => p.socketId));
 
-  if (position) {
-    cube.position.set(position.x, position.y, position.z);
-  }
-
-  return cube;
-}
-
-socket.on("current-players", (serverPlayers) => {
-  for (let id in serverPlayers) {
-    if (id === socket.id) {
-      const playerData = serverPlayers[id];
-      localPlayer = createLocalPlayer(playerData.color);
-      localPlayer.position.set(
-        playerData.position.x,
-        playerData.position.y,
-        playerData.position.z,
-      );
-      players[id] = localPlayer;
-    } else {
-      // Create remote player
-      const playerData = serverPlayers[id];
-      const remoteCube = createRemotePlayer(
-        id,
-        playerData.color,
-        playerData.position,
-      );
-      players[id] = remoteCube;
+  // 1. Remove players that no longer exist
+  for (const [socketId, mesh] of playerMeshes.entries()) {
+    if (!currentIds.has(socketId)) {
+      scene.remove(mesh);
+      // optional: dispose geometry/material to free memory
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+      playerMeshes.delete(socketId);
     }
   }
-  updatePlayerCount();
-});
 
-socket.on("new-player", (playerData) => {
-  if (playerData.id !== socket.id && !players[playerData.id]) {
-    const remoteCube = createRemotePlayer(
-      playerData.id,
-      playerData.color,
-      playerData.position,
+  // 2. Add or update existing players
+  for (const player of state.players) {
+    const isLocal = player.socketId === socket.id;
+    let mesh = playerMeshes.get(player.socketId);
+    if (!mesh) {
+      mesh = createPlayerMesh(isLocal);
+      playerMeshes.set(player.socketId, mesh);
+      scene.add(mesh);
+    }
+
+    // Update position from player.pos (Vector with x, y, z)
+    mesh.position.set(
+      player.pos.x,
+      player.pos.y + 0.5, // lift sphere so it stands on the grid (radius 0.5)
+      player.pos.z,
     );
-    players[playerData.id] = remoteCube;
-    updatePlayerCount();
-  }
-});
 
-socket.on("player-moved", (data) => {
-  if (players[data.id] && data.id !== socket.id) {
-    players[data.id].position.set(
-      data.position.x,
-      data.position.y,
-      data.position.z,
-    );
+    // Optional: rotate the mesh according to player.rot (yaw only for simplicity)
+    // Rotation: player.rot is Euler angles in radians. We'll set Y rotation.
+    if (player.rot && typeof player.rot.y === "number") {
+      mesh.rotation.y = player.rot.y;
+    }
   }
-});
-
-socket.on("player-disconnected", (id) => {
-  if (players[id]) {
-    scene.remove(players[id]);
-    delete players[id];
-    updatePlayerCount();
-  }
-});
-
-function updatePlayerCount() {
-  const count = Object.keys(players).length;
-  const playerCountElement = document.getElementById("player-count-value");
-  if (!playerCountElement) return;
-  playerCountElement.textContent = count.toString();
 }
-
-window.addEventListener("keydown", (e) => {
-  const key = e.key.toLowerCase();
-  if (keys.hasOwnProperty(key)) {
-    keys[key] = true;
-    e.preventDefault();
-  }
-});
-
-window.addEventListener("keyup", (e) => {
-  const key = e.key.toLowerCase();
-  if (keys.hasOwnProperty(key)) {
-    keys[key] = false;
-    e.preventDefault();
-  }
-});
 
 function updateCamera() {
+  const localPlayer = state.players.find((p) => p.socketId === socket.id);
   if (localPlayer) {
-    const targetPos = localPlayer.position.clone();
-    const cameraOffset = new THREE.Vector3(-5, 5, 5);
-    const desiredPosition = targetPos.clone().add(cameraOffset);
-    camera.position.lerp(desiredPosition, 0.1);
-    camera.lookAt(targetPos);
+    // same offset as original: x+3, z+4
+    const targetX = localPlayer.pos.x + 3;
+    const targetZ = localPlayer.pos.z + 4;
+    camera.position.x = targetX;
+    camera.position.z = targetZ;
+    camera.position.y = 3; // keep a comfortable height
+    camera.lookAt(
+      localPlayer.pos.x,
+      localPlayer.pos.y + 0.5,
+      localPlayer.pos.z,
+    );
+  } else {
+    // fallback: if no local player yet, look at origin
+    camera.position.set(5, 5, 5);
+    camera.lookAt(0, 0, 0);
   }
 }
 
-let lastTime = performance.now();
-
-function updateMovement(deltaTime: number) {
-  if (!localPlayer) return;
-
-  let moveX = 0;
-  let moveZ = 0;
-
-  if (keys.w) moveZ -= 1;
-  if (keys.s) moveZ += 1;
-  if (keys.a) moveX -= 1;
-  if (keys.d) moveX += 1;
-
-  if (moveX !== 0 || moveZ !== 0) {
-    const length = Math.hypot(moveX, moveZ);
-    moveX /= length;
-    moveZ /= length;
-  }
-
-  const speed = moveSpeed * deltaTime;
-  let newX = localPlayer.position.x + moveX * speed;
-  let newZ = localPlayer.position.z + moveZ * speed;
-
-  const limit = 11;
-  newX = Math.max(-limit, Math.min(limit, newX));
-  newZ = Math.max(-limit, Math.min(limit, newZ));
-
-  if (newX !== localPlayer.position.x || newZ !== localPlayer.position.z) {
-    localPlayer.position.x = newX;
-    localPlayer.position.z = newZ;
-
-    socket.emit("player-move", {
-      x: localPlayer.position.x,
-      y: localPlayer.position.y,
-      z: localPlayer.position.z,
-    });
-  }
-}
-
+// --- Animation loop ---
 function animate() {
-  const now = performance.now();
-  let deltaTime = Math.min(0.033, (now - lastTime) / 1000);
-  lastTime = now;
+  // 1. Sync Three.js objects with current state
+  synchronisePlayers();
 
-  updateMovement(deltaTime);
+  // 2. Make camera follow local player
   updateCamera();
 
+  // 3. Render the scene
   renderer.render(scene, camera);
+
   requestAnimationFrame(animate);
 }
 
+// Start the loop
+animate();
+
+// Optional: resize handler
 window.addEventListener("resize", onWindowResize, false);
 function onWindowResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
-
-animate();
-
-console.log("Game client initialized");
