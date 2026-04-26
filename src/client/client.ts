@@ -1,14 +1,13 @@
-import { io } from "socket.io-client";
 import State from "../lib/entity/state";
 import { ClientHandler } from "../lib/events/clientHandler";
 import * as THREE from "three";
+import getRandomId from "../server/identifiers";
 
-const socket = io(window.location.origin);
 const state = new State();
-const handler = new ClientHandler(socket, state);
-handler.initialize();
+const handler = new ClientHandler(state);
+await handler.initialize();
 
-socket.emit("AddPlayerEvent");
+handler.emit("AddPlayerEvent", { tempId: getRandomId() });
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x111122);
@@ -88,7 +87,7 @@ function synchronisePlayers() {
 
   // 2. Add or update existing players
   for (const player of state.players) {
-    const isLocal = player.socketId === socket.id;
+    const isLocal = player.socketId === handler.socketId;
     let mesh = playerMeshes.get(player.socketId);
     if (!mesh) {
       mesh = createPlayerMesh(isLocal);
@@ -112,7 +111,9 @@ function synchronisePlayers() {
 }
 
 function updateCamera() {
-  const localPlayer = state.players.find((p) => p.socketId === socket.id);
+  const localPlayer = state.players.find(
+    (p) => p.socketId === handler.socketId,
+  );
   if (localPlayer) {
     // same offset as original: x+3, z+4
     const targetX = localPlayer.pos.x + 3;

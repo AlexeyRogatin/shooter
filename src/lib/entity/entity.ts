@@ -1,12 +1,14 @@
 import * as CANNON from "cannon-es";
 import Vector from "../helpers/vector";
-import { Id, Serializable, Serialize } from "./serializable";
+import { Id, Serializable, Serialize, TempId } from "./serializable";
 
 @Serializable
 export default class Entity {
   @Id
-  @Serialize
   id: string = globalThis.crypto.randomUUID();
+
+  @TempId
+  tempId: string | null = null;
 
   body: CANNON.Body = new CANNON.Body();
 

@@ -1,9 +1,8 @@
 import Player from "./player";
-import { ArrayOf, Serializable, Serialize } from "./serializable";
+import { ArrayOf, Serializable } from "./serializable";
 
 @Serializable
 export default class State {
   @ArrayOf(Player)
-  @Serialize
   players: Player[] = [];
 }

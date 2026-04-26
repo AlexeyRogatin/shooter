@@ -1,6 +1,11 @@
 const metadataMap = new WeakMap<
   object,
-  { serialize: Set<string>; id?: string; arrayOf?: Map<string, new () => any> }
+  {
+    serialize: Set<string>;
+    id?: string;
+    tempId?: string;
+    arrayOf?: Map<string, new () => any>;
+  }
 >();
 
 function getMetadata(ctor: any) {
@@ -26,21 +31,31 @@ function collectWhitelist(ctor: any): Set<string> {
   return whitelist;
 }
 
-function getArrayOf(ctor: any, prop: string): (new () => any) | undefined {
-  let current = ctor;
-  while (current && current !== Object.prototype) {
-    const meta = metadataMap.get(current);
-    if (meta?.arrayOf?.has(prop)) return meta.arrayOf.get(prop);
-    current = Object.getPrototypeOf(current);
-  }
-  return undefined;
-}
-
 function getIdProperty(ctor: any): string | undefined {
   let current = ctor;
   while (current && current !== Object.prototype) {
     const meta = metadataMap.get(current);
     if (meta?.id) return meta.id;
+    current = Object.getPrototypeOf(current);
+  }
+  return undefined;
+}
+
+function getTempIdProperty(ctor: any): string | undefined {
+  let current = ctor;
+  while (current && current !== Object.prototype) {
+    const meta = metadataMap.get(current);
+    if (meta?.tempId) return meta.tempId;
+    current = Object.getPrototypeOf(current);
+  }
+  return undefined;
+}
+
+function getArrayOf(ctor: any, prop: string): (new () => any) | undefined {
+  let current = ctor;
+  while (current && current !== Object.prototype) {
+    const meta = metadataMap.get(current);
+    if (meta?.arrayOf?.has(prop)) return meta.arrayOf.get(prop);
     current = Object.getPrototypeOf(current);
   }
   return undefined;
@@ -63,7 +78,19 @@ export function Id(
 ) {
   const { name, addInitializer } = context;
   addInitializer(function (this: any) {
-    getMetadata(this.constructor).id = name as string;
+    const meta = getMetadata(this.constructor);
+    meta.id = name as string;
+    meta.serialize.add(name as string);
+  });
+  return original;
+}
+
+export function TempId(original: any, context: ClassFieldDecoratorContext) {
+  const { name, addInitializer } = context;
+  addInitializer(function (this: any) {
+    const meta = getMetadata(this.constructor);
+    meta.tempId = name as string;
+    meta.serialize.add(name as string);
   });
   return original;
 }
@@ -78,6 +105,7 @@ export function ArrayOf<T>(elementConstructor: new () => T) {
       const meta = getMetadata(this.constructor);
       if (!meta.arrayOf) meta.arrayOf = new Map();
       meta.arrayOf.set(name as string, elementConstructor);
+      meta.serialize.add(name as string);
     });
     return original;
   };
@@ -125,23 +153,60 @@ function deserializeInternal(
     if (!Array.isArray(target)) target = [];
     const finalCtor = inferElementCtor(target, data, elementCtor);
     const idProp = getIdProperty(finalCtor);
+    const tempIdProp = getTempIdProperty(finalCtor);
 
-    if (idProp) {
-      const existingMap = new Map();
+    if (idProp || tempIdProp) {
+      const existingById = new Map<any, any>();
+      const existingByTemp = new Map<any, any>();
       for (const item of target) {
-        const idValue = item[idProp];
-        if (idValue !== undefined) existingMap.set(idValue, item);
+        const idValue = idProp ? item[idProp] : undefined;
+        if (idValue !== undefined && idValue !== null) {
+          existingById.set(idValue, item);
+        }
+        if (tempIdProp) {
+          const tempValue = item[tempIdProp];
+          if (tempValue !== undefined && tempValue !== null) {
+            existingByTemp.set(tempValue, item);
+          }
+        }
       }
+
       const newArray: any[] = [];
       for (const itemData of data) {
-        const idValue = itemData[idProp];
-        let existing =
-          idValue !== undefined ? existingMap.get(idValue) : undefined;
+        const incomingId = idProp ? itemData[idProp] : undefined;
+        const incomingTemp = tempIdProp ? itemData[tempIdProp] : undefined;
+        let existing: any = undefined;
+        if (incomingTemp !== undefined) {
+          existing = existingByTemp.get(incomingTemp);
+        }
+        if (!existing && incomingId !== undefined) {
+          existing = existingById.get(incomingId);
+        }
         if (!existing) {
           existing = new finalCtor();
+          if (incomingId !== undefined && idProp) {
+            existing[idProp] = incomingId;
+          }
+          if (incomingTemp !== undefined && tempIdProp) {
+            existing[tempIdProp] = incomingTemp;
+          }
           target.push(existing);
+        } else {
+          if (
+            incomingId !== undefined &&
+            idProp &&
+            existing[idProp] !== incomingId
+          ) {
+            existing[idProp] = incomingId;
+          }
+          if (tempIdProp && existing[tempIdProp] !== undefined) {
+            delete existing[tempIdProp];
+          }
         }
         deserializeInternal(existing, itemData, seen, finalCtor);
+        if (tempIdProp && existing[tempIdProp] !== undefined) {
+          delete existing[tempIdProp];
+        }
         newArray.push(existing);
       }
       target.length = 0;
@@ -163,29 +228,40 @@ function deserializeInternal(
   }
 
   if (typeof target !== "object" || target === null) {
-    target = new target.constructor();
+    const ctor = data?.constructor;
+    if (ctor && ctor !== Object) {
+      target = new ctor();
+    } else {
+      target = {};
+    }
   }
   seen.set(data, target);
 
   const whitelist = collectWhitelist(target.constructor);
   const idProp = getIdProperty(target.constructor);
+  const tempIdProp = getTempIdProperty(target.constructor);
+
   for (const prop of whitelist) {
     if (prop === idProp) continue;
-    if (data[prop] === undefined) continue;
-    const existingValue = target[prop];
+    if (!(prop in data)) continue;
+    const incomingValue = data[prop];
+    const currentValue = target[prop];
     const arrayOfCtor = getArrayOf(target.constructor, prop);
-    if (Array.isArray(existingValue) && Array.isArray(data[prop])) {
-      deserializeInternal(existingValue, data[prop], seen, arrayOfCtor);
+    if (Array.isArray(currentValue) && Array.isArray(incomingValue)) {
+      deserializeInternal(currentValue, incomingValue, seen, arrayOfCtor);
     } else if (
-      existingValue &&
-      typeof existingValue === "object" &&
-      data[prop] &&
-      typeof data[prop] === "object"
+      currentValue &&
+      typeof currentValue === "object" &&
+      incomingValue &&
+      typeof incomingValue === "object"
     ) {
-      deserializeInternal(existingValue, data[prop], seen);
+      deserializeInternal(currentValue, incomingValue, seen);
     } else {
-      target[prop] = deserializeInternal(existingValue, data[prop], seen);
+      target[prop] = deserializeInternal(currentValue, incomingValue, seen);
     }
+  }
+  if (tempIdProp && target[tempIdProp] !== undefined) {
+    delete target[tempIdProp];
   }
   return target;
 }

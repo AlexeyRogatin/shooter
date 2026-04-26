@@ -1,24 +1,41 @@
+import { io } from "socket.io-client";
 import State from "../entity/state";
-import { ClientSocket } from "./event";
 import { clientEvents } from "./events";
 
 export class ClientHandler {
-  constructor(
-    public readonly socket: ClientSocket,
-    public readonly state: State,
-  ) {}
+  private readonly socket = io(window.location.origin);
 
-  initialize() {
-    this.socket.on("connect", () => {
-      for (const event of clientEvents) {
-        this.socket.on(event.name, (data) => {
-          console.log(event.name, data);
-          new event({ clientSocket: this.socket }).handle({
-            data,
-            state: this.state,
+  constructor(public readonly state: State) {}
+
+  get socketId() {
+    return this.socket.id;
+  }
+
+  async initialize() {
+    return new Promise<void>((resolve) => {
+      this.socket.on("connect", () => {
+        for (const event of clientEvents) {
+          this.socket.on(event.name, (data) => {
+            console.log(event.name, data);
+            new event({ clientSocket: this.socket }).handle({
+              data,
+              state: this.state,
+            });
           });
-        });
-      }
+        }
+        resolve();
+      });
     });
+  }
+
+  emit(event: string, data: any = {}) {
+    const eventObj = clientEvents.find((e) => e.name === event);
+    if (eventObj) {
+      new eventObj({ clientSocket: this.socket }).handle({
+        data,
+        state: this.state,
+      });
+    }
+    this.socket.emit(event, data);
   }
 }

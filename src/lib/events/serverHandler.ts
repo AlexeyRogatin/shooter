@@ -1,12 +1,17 @@
+import { Server } from "socket.io";
 import State from "../entity/state";
-import { IO } from "./event";
 import { serverEvents } from "./events";
+import { Server as HttpServer } from "http";
 
 export class ServerHandler {
+  private readonly io: Server;
+
   constructor(
-    public readonly io: IO,
+    public readonly server: HttpServer,
     public readonly state: State,
-  ) {}
+  ) {
+    this.io = new Server(server);
+  }
 
   initialize() {
     this.io.on("connection", (socket) => {
@@ -20,5 +25,9 @@ export class ServerHandler {
         });
       }
     });
+  }
+
+  emit(event: string, data: any) {
+    this.io.emit(event, data);
   }
 }

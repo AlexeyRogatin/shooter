@@ -1,6 +1,5 @@
 import express from "express";
 import http from "http";
-import { Server } from "socket.io";
 import webpack from "webpack";
 import webpackMiddleware from "webpack-dev-middleware";
 import webpackConfig from "../../webpack.config";
@@ -17,13 +16,12 @@ app.use(
 app.use(express.static("dist"));
 
 const server = http.createServer(app);
-const io = new Server(server);
 const state = new State();
-const handler = new ServerHandler(io, state);
+const handler = new ServerHandler(server, state);
 handler.initialize();
 
 function emitLoop() {
-  io.emit("StateEvent", state);
+  handler.emit("StateEvent", state);
   setTimeout(emitLoop, 1000);
 }
 
