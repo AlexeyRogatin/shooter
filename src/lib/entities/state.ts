@@ -1,5 +1,5 @@
+import { ArrayOf, Serializable } from "../entityDecorators/serializable";
 import Player from "./player";
-import { ArrayOf, Serializable } from "./serializable";
 
 @Serializable
 export default class State {

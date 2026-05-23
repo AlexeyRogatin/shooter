@@ -1,6 +1,7 @@
+import { Serializable, Serialize } from "../entityDecorators/serializable";
+import World from "../entityDecorators/world";
 import Entity from "./entity";
 import * as CANNON from "cannon-es";
-import { Serializable, Serialize } from "./serializable";
 
 @Serializable
 export default class Player extends Entity {
@@ -11,5 +12,13 @@ export default class Player extends Entity {
     super();
     this.body.addShape(new CANNON.Sphere(0.5));
     this.body.mass = 1;
+  }
+
+  initialize() {
+    World.get()?.addBody(this.body);
+  }
+
+  destroy() {
+    World.get()?.removeBody(this.body);
   }
 }

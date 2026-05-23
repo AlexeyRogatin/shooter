@@ -126,6 +126,18 @@ export function Serializable<T extends { new (...args: any[]): {} }>(
   };
 }
 
+function callInitialize(obj: any) {
+  if (obj && typeof obj.initialize === "function") {
+    obj.initialize();
+  }
+}
+
+function callDestroy(obj: any) {
+  if (obj && typeof obj.destroy === "function") {
+    obj.destroy();
+  }
+}
+
 function inferElementCtor(
   target: any[],
   data: any[],
@@ -154,6 +166,8 @@ function deserializeInternal(
     const finalCtor = inferElementCtor(target, data, elementCtor);
     const idProp = getIdProperty(finalCtor);
     const tempIdProp = getTempIdProperty(finalCtor);
+
+    const oldItems = [...target];
 
     if (idProp || tempIdProp) {
       const existingById = new Map<any, any>();
@@ -190,6 +204,7 @@ function deserializeInternal(
           if (incomingTemp !== undefined && tempIdProp) {
             existing[tempIdProp] = incomingTemp;
           }
+          callInitialize(existing);
           target.push(existing);
         } else {
           if (
@@ -209,6 +224,13 @@ function deserializeInternal(
         }
         newArray.push(existing);
       }
+
+      for (const item of oldItems) {
+        if (!newArray.includes(item)) {
+          callDestroy(item);
+        }
+      }
+
       target.length = 0;
       target.push(...newArray);
     } else {
@@ -217,20 +239,27 @@ function deserializeInternal(
           deserializeInternal(target[i], data[i], seen, finalCtor);
         } else {
           const newItem = new finalCtor();
+          callInitialize(newItem);
           deserializeInternal(newItem, data[i], seen, finalCtor);
           target.push(newItem);
         }
       }
+      for (let i = data.length; i < oldItems.length; i++) {
+        callDestroy(oldItems[i]);
+      }
       target.length = data.length;
     }
+
     seen.set(data, target);
     return target;
   }
 
+  let created = false;
   if (typeof target !== "object" || target === null) {
     const ctor = data?.constructor;
     if (ctor && ctor !== Object) {
       target = new ctor();
+      created = true;
     } else {
       target = {};
     }
@@ -240,6 +269,13 @@ function deserializeInternal(
   const whitelist = collectWhitelist(target.constructor);
   const idProp = getIdProperty(target.constructor);
   const tempIdProp = getTempIdProperty(target.constructor);
+
+  if (idProp && data[idProp] !== undefined) {
+    target[idProp] = data[idProp];
+  }
+  if (tempIdProp && data[tempIdProp] !== undefined) {
+    target[tempIdProp] = data[tempIdProp];
+  }
 
   for (const prop of whitelist) {
     if (prop === idProp) continue;
@@ -257,12 +293,23 @@ function deserializeInternal(
     ) {
       deserializeInternal(currentValue, incomingValue, seen);
     } else {
-      target[prop] = deserializeInternal(currentValue, incomingValue, seen);
+      const oldValue = target[prop];
+      const newValue = deserializeInternal(currentValue, incomingValue, seen);
+      if (oldValue !== newValue && oldValue && typeof oldValue === "object") {
+        callDestroy(oldValue);
+      }
+      target[prop] = newValue;
     }
   }
+
+  if (created) {
+    callInitialize(target);
+  }
+
   if (tempIdProp && target[tempIdProp] !== undefined) {
     delete target[tempIdProp];
   }
+
   return target;
 }
 
@@ -271,6 +318,7 @@ export function deserialize<T>(target: T | undefined | null, data: any): T {
     const ctor = data?.constructor;
     if (ctor && ctor !== Object && ctor !== Array) {
       target = new ctor();
+      callInitialize(target);
     } else {
       throw new Error(
         "Cannot infer constructor for deserialization without existing target",

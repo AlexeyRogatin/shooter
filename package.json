@@ -9,7 +9,8 @@
   "scripts": {
     "start": "node src/server/server.ts",
     "build": "webpack --mode production",
-    "dev": "concurrently \"webpack --mode development --watch\" \"tsx watch src/server/server.ts\""
+    "dev": "concurrently \"webpack --mode development --watch\" \"tsx watch src/server/server.ts\"",
+    "test": "jest"
   },
   "dependencies": {
     "cannon-es": "^0.20.0",
@@ -21,6 +22,7 @@
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25.6.0",
     "@types/socket.io": "^3.0.1",
     "@types/socket.io-client": "^1.4.36",
@@ -29,7 +31,9 @@
     "@types/webpack-dev-server": "^4.7.1",
     "concurrently": "^9.2.1",
     "html-webpack-plugin": "^5.6.6",
+    "jest": "^30.4.2",
     "nodemon": "^3.1.14",
+    "ts-jest": "^29.4.11",
     "ts-loader": "^9.5.7",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",

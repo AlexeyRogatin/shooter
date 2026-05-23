@@ -1,5 +1,7 @@
 import path from "path";
 import HtmlWebpackPlugin from "html-webpack-plugin";
+import webpack from "webpack";
+const { DefinePlugin } = webpack;
 
 const config = {
   entry: "./src/client/client.ts",
@@ -21,6 +23,9 @@ const config = {
     ],
   },
   plugins: [
+    new DefinePlugin({
+      "process.env.IS_SERVER": false,
+    }),
     new HtmlWebpackPlugin({
       template: "./src/client/index.html",
       filename: "index.html",
@@ -30,6 +35,10 @@ const config = {
     static: "./dist",
   },
   mode: "development",
+  optimization: {
+    usedExports: true,
+    minimize: true,
+  },
 };
 
 export default config;

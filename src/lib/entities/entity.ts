@@ -1,16 +1,25 @@
 import * as CANNON from "cannon-es";
 import Vector from "../helpers/vector";
-import { Id, Serializable, Serialize, TempId } from "./serializable";
+import Emitter from "../helpers/emitter";
+import {
+  Serializable,
+  Id,
+  TempId,
+  Serialize,
+} from "../entityDecorators/serializable";
+import { LifecycleEntity } from "./lificycle";
 
 @Serializable
-export default class Entity {
+export default class Entity extends LifecycleEntity {
   @Id
   id: string = globalThis.crypto.randomUUID();
 
   @TempId
   tempId: string | null = null;
 
-  body: CANNON.Body = new CANNON.Body();
+  protected body: CANNON.Body = new CANNON.Body();
+
+  emitter: Emitter = new Emitter();
 
   @Serialize
   get pos() {
@@ -18,6 +27,7 @@ export default class Entity {
   }
 
   set pos(pos: Vector) {
+    this.emitter.emit("posChange", pos);
     this.body.position.set(pos.x, pos.y, pos.z);
   }
 
@@ -27,6 +37,7 @@ export default class Entity {
   }
 
   set vel(vel: Vector) {
+    this.emitter.emit("velChange", vel);
     this.body.velocity.set(vel.x, vel.y, vel.z);
   }
 
@@ -36,6 +47,7 @@ export default class Entity {
   }
 
   set angVel(vel: Vector) {
+    this.emitter.emit("angVelChange", vel);
     this.body.angularVelocity.set(vel.x, vel.y, vel.z);
   }
 
@@ -47,6 +59,7 @@ export default class Entity {
   }
 
   set rot(rot: Vector) {
+    this.emitter.emit("rotChange", rot);
     this.body.quaternion.setFromEuler(rot.x, rot.y, rot.z);
   }
 
@@ -56,6 +69,7 @@ export default class Entity {
   }
 
   set force(force: Vector) {
+    this.emitter.emit("forceChange", force);
     this.body.force.set(force.x, force.y, force.z);
   }
 
@@ -65,6 +79,7 @@ export default class Entity {
   }
 
   set torque(torque: Vector) {
+    this.emitter.emit("torqueChange", torque);
     this.body.torque.set(torque.x, torque.y, torque.z);
   }
 
@@ -74,6 +89,7 @@ export default class Entity {
   }
 
   set damping(damping: number) {
+    this.emitter.emit("dampingChange", damping);
     this.body.linearDamping = damping;
   }
 
@@ -83,6 +99,7 @@ export default class Entity {
   }
 
   set angularDamping(damping: number) {
+    this.emitter.emit("angularDampingChange", damping);
     this.body.angularDamping = damping;
   }
 
@@ -92,6 +109,7 @@ export default class Entity {
   }
 
   set factor(factor: Vector) {
+    this.emitter.emit("factorChange", factor);
     this.body.linearFactor.set(factor.x, factor.y, factor.z);
   }
 
@@ -101,6 +119,7 @@ export default class Entity {
   }
 
   set angularFactor(factor: Vector) {
+    this.emitter.emit("angularFactorChange", factor);
     this.body.angularFactor.set(factor.x, factor.y, factor.z);
   }
 
@@ -110,6 +129,7 @@ export default class Entity {
   }
 
   set mass(mass: number) {
+    this.emitter.emit("massChange", mass);
     this.body.mass = mass;
   }
 
@@ -118,6 +138,7 @@ export default class Entity {
   }
 
   set material(material: CANNON.Material) {
+    this.emitter.emit("materialChange", material);
     this.body.material = material;
   }
 
@@ -157,9 +178,11 @@ export default class Entity {
 
   addShape(shape: CANNON.Shape) {
     this.body.addShape(shape);
+    this.emitter.emit("addShape", shape);
   }
 
   removeShape(shape: CANNON.Shape) {
     this.body.removeShape(shape);
+    this.emitter.emit("removeShape", shape);
   }
 }

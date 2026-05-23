@@ -1,6 +1,6 @@
 import { io } from "socket.io-client";
-import State from "../entity/state";
-import { clientEvents } from "./events";
+import State from "../entities/state";
+import { events } from "../events/events";
 
 export class ClientHandler {
   private readonly socket = io(window.location.origin);
@@ -14,8 +14,8 @@ export class ClientHandler {
   async initialize() {
     return new Promise<void>((resolve) => {
       this.socket.on("connect", () => {
-        for (const event of clientEvents) {
-          this.socket.on(event.name, (data) => {
+        for (const event of events) {
+          this.socket.on(event.name, (data: any) => {
             console.log(event.name, data);
             new event({ clientSocket: this.socket }).handle({
               data,
@@ -29,8 +29,9 @@ export class ClientHandler {
   }
 
   emit(event: string, data: any = {}) {
-    const eventObj = clientEvents.find((e) => e.name === event);
+    const eventObj = events.find((e: any) => e.name === event);
     if (eventObj) {
+      console.log(eventObj.name, data);
       new eventObj({ clientSocket: this.socket }).handle({
         data,
         state: this.state,

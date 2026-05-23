@@ -1,6 +1,6 @@
-import State from "../entity/state";
 import { DefaultEventsMap, Server, Socket } from "socket.io";
 import { Socket as SocketClient } from "socket.io-client";
+import State from "../entities/state";
 
 export type IO = Server<
   DefaultEventsMap,
@@ -30,36 +30,16 @@ export default class GameEvent {
   serverSocket: ServerSocket | null;
   clientSocket: ClientSocket | null;
 
+  get socket(): ServerSocket | ClientSocket {
+    return process.env.IS_SERVER ? this.serverSocket! : this.clientSocket!;
+  }
+
   constructor({ serverSocket, clientSocket }: EventConstructor) {
     this.serverSocket = serverSocket ?? null;
     this.clientSocket = clientSocket ?? null;
   }
 
-  isClient(): this is { clientSocket: ClientSocket; serverSocket: null } {
-    return (
-      this.clientSocket !== null &&
-      typeof window !== "undefined" &&
-      typeof document !== "undefined"
-    );
+  handle(_args: EventData) {
+    throw new Error("Not implemented");
   }
-
-  isServer(): this is { serverSocket: ServerSocket; clientSocket: null } {
-    return this.serverSocket !== null && !this.isClient();
-  }
-
-  useClient<T>(func: (socket: ClientSocket) => T) {
-    if (this.isClient()) {
-      return func(this.clientSocket);
-    }
-    return null;
-  }
-
-  useServer<T>(func: (socket: ServerSocket) => T | null) {
-    if (this.isServer()) {
-      return func(this.serverSocket);
-    }
-    return null;
-  }
-
-  handle(_args: EventData) {}
 }

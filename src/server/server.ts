@@ -3,8 +3,10 @@ import http from "http";
 import webpack from "webpack";
 import webpackMiddleware from "webpack-dev-middleware";
 import webpackConfig from "../../webpack.config";
-import State from "../lib/entity/state";
-import { ServerHandler } from "../lib/events/serverHandler";
+import State from "../lib/entities/state";
+import { ServerHandler } from "../lib/eventHandling/serverHandler";
+
+process.env.IS_SERVER = "true";
 
 const app = express();
 const compiler = webpack(webpackConfig);
@@ -22,7 +24,7 @@ handler.initialize();
 
 function emitLoop() {
   handler.emit("StateEvent", state);
-  setTimeout(emitLoop, 1000);
+  setTimeout(emitLoop, 1000 / 60);
 }
 
 emitLoop();

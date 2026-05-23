@@ -1,10 +1,5 @@
-import AddPlayerEvent from "./addPlayerEvent";
-import GameEvent from "./event";
-import StateEvent from "./stateEvent";
+import GameEvent from "../eventHandling/event";
+import AddPlayerEvent from "../events/addPlayerEvent";
+import StateEvent from "../events/stateEvent";
 
-export const serverOnlyEvents: (typeof GameEvent)[] = [];
-export const clientOnlyEvents: (typeof GameEvent)[] = [StateEvent];
-export const sharedEvents: (typeof GameEvent)[] = [AddPlayerEvent];
-
-export const serverEvents = [...serverOnlyEvents, ...sharedEvents];
-export const clientEvents = [...clientOnlyEvents, ...sharedEvents];
+export const events: (typeof GameEvent)[] = [AddPlayerEvent, StateEvent];
